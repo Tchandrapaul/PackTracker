@@ -64,6 +64,20 @@ PawLog/
 - Real-time sync via `CKSubscription` push notifications
 - Local JSON cache with CloudKit as source of truth
 
+### 🔲 Phase 4 — WidgetKit
+- Small widget — active pet's last logged event + relative time
+- Medium widget — today's summary counts for the active pet
+- Interactive logging buttons (iOS 17+) via App Intents — log pee/poop/walk directly from the home screen without opening the app
+- App Group storage migration to share data between the app and widget extension
+
+### 🔲 Phase 5 — Design Polish
+- Custom SF Symbol icon set (including a proper poop icon)
+- App icon
+- Brand color palette and typography
+- Onboarding flow introducing the pack concept
+
+### 🔲 Phase 6 — App Store Submission
+
 ## Requirements
 
 - iOS 17+
