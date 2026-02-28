@@ -10,7 +10,7 @@ import Foundation
 final class EventStore: ObservableObject {
     @Published private(set) var events: [PetEvent] = []
 
-    //used to trigger toast
+    // Used to trigger toast in LogEventsView
     @Published var lastLogged: PetEvent? = nil
 
     private let fileURL: URL
@@ -21,26 +21,27 @@ final class EventStore: ObservableObject {
         load()
     }
 
-    func add(type: EventType, at date: Date) {
-        let e = PetEvent(id: UUID(), type: type, timestamp: date)
+    // MARK: - Write
+
+    func add(type: EventType, at date: Date, petId: UUID) {
+        let e = PetEvent(id: UUID(), type: type, timestamp: date, petId: petId)
         events.insert(e, at: 0)
         lastLogged = e
         save()
     }
 
-    func add(types: [EventType], at date: Date) {
-        let newEvents = types.map { PetEvent(id: UUID(), type: $0, timestamp: date) }
-        // newest-first overall
-        events = newEvents.sorted(by: { $0.timestamp > $1.timestamp }) + events
+    func add(types: [EventType], at date: Date, petId: UUID) {
+        let newEvents = types.map { PetEvent(id: UUID(), type: $0, timestamp: date, petId: petId) }
+        events = newEvents.sorted { $0.timestamp > $1.timestamp } + events
         lastLogged = newEvents.first
         save()
     }
 
-    func events(for day: Date) -> [PetEvent] {
-        let cal = Calendar.current
-        return events
-            .filter { cal.isDate($0.timestamp, inSameDayAs: day) }
-            .sorted { $0.timestamp > $1.timestamp }
+    func update(_ event: PetEvent, timestamp: Date) {
+        guard let index = events.firstIndex(where: { $0.id == event.id }) else { return }
+        events[index] = PetEvent(id: event.id, type: event.type, timestamp: timestamp, petId: event.petId)
+        events.sort { $0.timestamp > $1.timestamp }
+        save()
     }
 
     func delete(at offsets: IndexSet, from list: [PetEvent]) {
@@ -49,18 +50,46 @@ final class EventStore: ObservableObject {
         save()
     }
 
-    func update(_ event: PetEvent, timestamp: Date) {
-        guard let index = events.firstIndex(where: { $0.id == event.id }) else { return }
-        events[index] = PetEvent(id: event.id, type: event.type, timestamp: timestamp)
-        events.sort { $0.timestamp > $1.timestamp }
+    func deleteAllEvents(for petId: UUID) {
+        events.removeAll { $0.petId == petId }
         save()
     }
+
+    // MARK: - Read
+
+    func events(for day: Date, petId: UUID) -> [PetEvent] {
+        let cal = Calendar.current
+        return events
+            .filter { $0.petId == petId && cal.isDate($0.timestamp, inSameDayAs: day) }
+            .sorted { $0.timestamp > $1.timestamp }
+    }
+
+    func events(for petId: UUID) -> [PetEvent] {
+        events.filter { $0.petId == petId }.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    // MARK: - Migration
+
+    /// Reassigns events saved before multi-pet support to the given pet.
+    /// Safe to call on every launch — no-ops if no orphaned events exist.
+    func migrateOrphanedEvents(to petId: UUID) {
+        let sentinel = PetEvent.unassignedPetId
+        guard events.contains(where: { $0.petId == sentinel }) else { return }
+        events = events.map { e in
+            e.petId == sentinel
+                ? PetEvent(id: e.id, type: e.type, timestamp: e.timestamp, petId: petId)
+                : e
+        }
+        save()
+    }
+
+    // MARK: - Persistence
 
     private func load() {
         do {
             let data = try Data(contentsOf: fileURL)
             let decoded = try JSONDecoder().decode([PetEvent].self, from: data)
-            self.events = decoded.sorted(by: { $0.timestamp > $1.timestamp })
+            self.events = decoded.sorted { $0.timestamp > $1.timestamp }
         } catch {
             self.events = []
         }
@@ -70,8 +99,6 @@ final class EventStore: ObservableObject {
         do {
             let data = try JSONEncoder().encode(events)
             try data.write(to: fileURL, options: [.atomic])
-        } catch {
-            // fail silently (don't crash)
-        }
+        } catch {}
     }
 }

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct LogEventsView: View {
     @EnvironmentObject private var store: EventStore
+    @EnvironmentObject private var petStore: PetStore
 
     @State private var isBatchMode = false
     @State private var selectedTypes = Set<EventType>()
@@ -30,6 +31,23 @@ struct LogEventsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
+
+                if petStore.activePet == nil {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "pawprint.fill")
+                            .font(.system(size: 44))
+                            .foregroundStyle(.secondary)
+                        Text("No active pet")
+                            .font(.title3).bold()
+                        Text("Add a pet in Settings to start logging.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding()
+                    Spacer()
+                } else {
 
                 // Icon grid
                 LazyVGrid(columns: columns, spacing: 16) {
@@ -62,6 +80,7 @@ struct LogEventsView: View {
                 }
 
                 Spacer(minLength: 0)
+                } // end activePet guard
             }
             .navigationTitle(isBatchMode ? "Select Events" : "Log Events")
             .toolbar {
@@ -81,12 +100,13 @@ struct LogEventsView: View {
                         pendingTypes = []
                     },
                     onConfirm: {
+                        guard let petId = petStore.activePet?.id else { return }
                         // log
                         if pendingTypes.count == 1, let t = pendingTypes.first {
-                            store.add(type: t, at: chosenDate)
+                            store.add(type: t, at: chosenDate, petId: petId)
                             triggerToast("\(t.label) logged")
                         } else {
-                            store.add(types: pendingTypes, at: chosenDate)
+                            store.add(types: pendingTypes, at: chosenDate, petId: petId)
                             triggerToast("Events logged")
                         }
 

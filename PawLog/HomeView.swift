@@ -9,26 +9,34 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var store: EventStore
-
-    private var today: Date { Date() }
-
-    private var todayEvents: [PetEvent] {
-        store.events(for: today)
-    }
-
-    private var recentEvents: [PetEvent] {
-        Array(store.events.prefix(5))
-    }
+    @EnvironmentObject private var petStore: PetStore
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    PetHeaderCard()
+                    if petStore.pets.isEmpty {
+                        NoPetsPrompt()
+                    } else {
+                        if petStore.pets.count > 1 {
+                            PetSwitcherStrip()
+                        }
 
-                    TodaySummarySection(events: todayEvents)
+                        if let pet = petStore.activePet {
+                            PetHeaderCard(
+                                pet: pet,
+                                color: petStore.color(for: pet)
+                            )
 
-                    RecentActivitySection(events: recentEvents)
+                            TodaySummarySection(
+                                events: store.events(for: Date(), petId: pet.id)
+                            )
+
+                            RecentActivitySection(
+                                events: Array(store.events(for: pet.id).prefix(5))
+                            )
+                        }
+                    }
 
                     Spacer(minLength: 0)
                 }
@@ -40,26 +48,92 @@ struct HomeView: View {
     }
 }
 
+// MARK: - No Pets Prompt
+
+private struct NoPetsPrompt: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "pawprint.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("No pets yet")
+                .font(.title2).bold()
+            Text("Head to Settings to add your first pet.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(.top, 60)
+    }
+}
+
+// MARK: - Pet Switcher Strip
+
+private struct PetSwitcherStrip: View {
+    @EnvironmentObject private var petStore: PetStore
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(petStore.pets) { pet in
+                    let isActive = pet.id == petStore.activePetId
+                    let color = petStore.color(for: pet)
+
+                    Button {
+                        petStore.activePetId = pet.id
+                    } label: {
+                        VStack(spacing: 6) {
+                            ZStack {
+                                Circle()
+                                    .fill(isActive ? color.opacity(0.2) : Color.secondary.opacity(0.10))
+                                    .frame(width: 52, height: 52)
+                                Text(pet.initial)
+                                    .font(.title3).bold()
+                                    .foregroundStyle(isActive ? color : .secondary)
+                            }
+                            Text(pet.name)
+                                .font(.caption)
+                                .fontWeight(isActive ? .semibold : .regular)
+                                .foregroundStyle(isActive ? color : .secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
 // MARK: - Pet Header Card
 
 private struct PetHeaderCard: View {
+    let pet: Pet
+    let color: Color
+
     var body: some View {
         HStack(spacing: 16) {
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.15))
+                    .fill(color.opacity(0.15))
                     .frame(width: 64, height: 64)
-                Image(systemName: "pawprint.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Color.accentColor)
+                Text(pet.initial)
+                    .font(.title).bold()
+                    .foregroundStyle(color)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Your Pet")
+                Text(pet.name)
                     .font(.title2).bold()
-                Text("Add a pet profile in Settings")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if let subtitle = pet.subtitle {
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Add breed & birthday in Settings")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -181,8 +255,8 @@ private struct RecentActivitySection: View {
     }
 
     private func relativeTime(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f.localizedString(for: date, relativeTo: Date())
     }
 }

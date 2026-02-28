@@ -49,4 +49,25 @@ struct PetEvent: Identifiable, Codable, Hashable {
     let id: UUID
     let type: EventType
     let timestamp: Date
+    var petId: UUID
+
+    /// Sentinel used for events saved before multi-pet support.
+    /// migrateOrphanedEvents(to:) in EventStore reassigns these on first launch.
+    static let unassignedPetId = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+
+    init(id: UUID = UUID(), type: EventType, timestamp: Date, petId: UUID) {
+        self.id = id
+        self.type = type
+        self.timestamp = timestamp
+        self.petId = petId
+    }
+
+    // Custom decoder: old JSON records without petId decode to unassignedPetId
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id        = try c.decode(UUID.self,       forKey: .id)
+        type      = try c.decode(EventType.self,  forKey: .type)
+        timestamp = try c.decode(Date.self,        forKey: .timestamp)
+        petId     = try c.decodeIfPresent(UUID.self, forKey: .petId) ?? Self.unassignedPetId
+    }
 }

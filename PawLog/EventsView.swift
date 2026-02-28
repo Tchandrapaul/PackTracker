@@ -2,12 +2,16 @@ import SwiftUI
 
 struct EventsView: View {
     @EnvironmentObject private var store: EventStore
+    @EnvironmentObject private var petStore: PetStore
 
     @State private var selectedDay = Date()
     @State private var showFullCalendar = false
     @State private var editingEvent: PetEvent? = nil
 
-    private var dayEvents: [PetEvent] { store.events(for: selectedDay) }
+    private var dayEvents: [PetEvent] {
+        guard let petId = petStore.activePet?.id else { return [] }
+        return store.events(for: selectedDay, petId: petId)
+    }
 
     var body: some View {
         NavigationStack {
@@ -105,8 +109,9 @@ struct EventsView: View {
     }
 
     private func tally(for day: Date) -> [(EventType, Int)] {
+        guard let petId = petStore.activePet?.id else { return [] }
         var counts: [EventType: Int] = [:]
-        for e in store.events(for: day) {
+        for e in store.events(for: day, petId: petId) {
             counts[e.type, default: 0] += 1
         }
         let ordered: [EventType] = [.pee, .poop, .food, .water, .walk, .treat]
@@ -257,7 +262,7 @@ private struct DayStrip: View {
                     proxy.scrollTo(todayStart, anchor: .center)
                 }
             }
-            .onChange(of: selectedDay) { newDay in
+            .onChange(of: selectedDay) { _, newDay in
                 let startOfNew = Calendar.current.startOfDay(for: newDay)
                 withAnimation(.easeInOut) {
                     proxy.scrollTo(startOfNew, anchor: .center)
